@@ -1,0 +1,27 @@
+# Network interface configuration for Raspberry Pi Bridge Mode
+# This file should be copied to /etc/network/interfaces
+
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+# Bridge interface for transparent IDPS monitoring
+# Bridge: eth0 (WAN to modem) + eth1 (LAN to router) = br0
+auto br0
+iface br0 inet dhcp
+    bridge_ports eth0 eth1
+    bridge_stp off
+    bridge_fd 0
+    bridge_maxwait 0
+    post-up /usr/local/bin/setup-bridge-iptables.sh
+    pre-down /usr/local/bin/cleanup-bridge-iptables.sh
+
+# WAN interface (connected to modem) - now part of bridge
+iface eth0 inet manual
+    up ip link set $IFACE up
+    down ip link set $IFACE down
+
+# LAN interface (connected to router) - now part of bridge  
+iface eth1 inet manual
+    up ip link set $IFACE up
+    down ip link set $IFACE down

@@ -1,0 +1,29 @@
+# systemd-networkd bridge configuration files
+# Place these files in /etc/systemd/network/
+
+# 10-bridge.netdev - Define the bridge interface
+[NetDev]
+Name=br0
+Kind=bridge
+
+# 20-bridge.network - Configure the bridge interface
+[Match]
+Name=br0
+
+[Network]
+DHCP=ipv4
+ConfigureWithoutCarrier=yes
+
+# 30-wan.network - Add WAN interface to bridge
+[Match]
+Name=eth0
+
+[Network]
+Bridge=br0
+
+# 40-lan.network - Add LAN interface to bridge
+[Match]
+Name=eth1
+
+[Network]
+Bridge=br0

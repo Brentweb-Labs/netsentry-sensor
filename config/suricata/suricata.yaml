@@ -1,0 +1,335 @@
+%YAML 1.1
+---
+
+vars:
+  address-groups:
+    HOME_NET: "[192.168.0.0/16,10.0.0.0/8,172.16.0.0/12]"
+    EXTERNAL_NET: "!$HOME_NET"
+    HTTP_SERVERS: "$HOME_NET"
+    SMTP_SERVERS: "$HOME_NET"
+    SQL_SERVERS: "$HOME_NET"
+    DNS_SERVERS: "$HOME_NET"
+    TELNET_SERVERS: "$HOME_NET"
+    AIM_SERVERS: "$EXTERNAL_NET"
+    DC_SERVERS: "$HOME_NET"
+    DNP3_SERVER: "$HOME_NET"
+    DNP3_CLIENT: "$HOME_NET"
+    MODBUS_CLIENT: "$HOME_NET"
+    MODBUS_SERVER: "$HOME_NET"
+    ENIP_CLIENT: "$HOME_NET"
+    ENIP_SERVER: "$HOME_NET"
+  port-groups:
+    HTTP_PORTS: "80"
+    SHELLCODE_PORTS: "!80"
+    ORACLE_PORTS: 1521
+    SSH_PORTS: 22
+    DNP3_PORTS: 20000
+    MODBUS_PORTS: 502
+    FILE_DATA_PORTS: "[$HTTP_PORTS,110,143]"
+    FTP_PORTS: 21
+    VXLAN_PORTS: 4789
+    TEREDO_PORTS: 3544
+
+default-log-dir: /var/log/suricata/
+
+stats:
+  enabled: yes
+  interval: 8
+
+outputs:
+  - fast:
+      enabled: yes
+      filename: fast.log
+      append: yes
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      community-id: false
+      xff:
+        enabled: no
+      types:
+        - alert:
+          payload: yes
+          payload-printable: yes
+          http: yes
+          tls: yes
+        - http:
+          extended: yes
+        - tls:
+          extended: yes
+        - dns:
+          query: yes
+          answer: yes
+        - smtp:
+          extended: yes
+        - flow:
+          enabled: yes
+  - stats:
+      enabled: yes
+      filename: stats.log
+      totals: yes
+      threads: no
+      dumps: yes
+  - syslog:
+      enabled: no
+
+logging:
+  default-log-level: notice
+  outputs:
+    - console:
+        enabled: yes
+    - file:
+        enabled: yes
+        filename: suricata.log
+        level: info
+
+af-packet:
+  - interface: default
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+    checksum-checks: auto
+    threads: auto
+    promisc: no
+    buffer-size: 65535
+    disable-offloading: false
+
+pcap:
+  - interface: default
+    buffer-size: 16777216
+    promisc: no
+    checksum-checks: auto
+
+pcap-file:
+  enabled: no
+
+# Configure the rule engine
+detect:
+  profile: medium
+  custom-values:
+    toclient-chunk-size: 2560
+    toserver-chunk-size: 2560
+  sgh-mpm-context: auto
+  sgh-mpm-threshold: 100
+  sgh-mpm-algo: auto
+  inspection-recursion-limit: 3000
+  prefetch: default
+  fast-pattern:
+    searcher: mpms
+  custom-events:
+    app-layer:
+      protocols:
+        smtp:
+          enabled: yes
+        http:
+          enabled: yes
+        dns:
+          enabled: yes
+        tls:
+          enabled: yes
+        ssh:
+          enabled: yes
+        imap:
+          enabled: yes
+        smb:
+          enabled: yes
+        ftp:
+          enabled: yes
+        tftp:
+          enabled: yes
+        nfs:
+          enabled: yes
+        dhcp:
+          enabled: yes
+        krb5:
+          enabled: yes
+        snmp:
+          enabled: yes
+        sip:
+          enabled: yes
+        http2:
+          enabled: yes
+        modbus:
+          enabled: yes
+        dnp3:
+          enabled: yes
+        enip:
+          enabled: yes
+        rdp:
+          enabled: yes
+        quic:
+          enabled: yes
+        ikev2:
+          enabled: yes
+
+# Rule loading
+default-rule-path: /var/lib/suricata/rules
+rule-files:
+  - suricata.rules
+  - idps-dynamic.rules
+
+# Thresholds
+thresholds:
+  memcap: 100mb
+  detect:
+    rate: 5
+    burst: 15
+
+# Host specific configuration
+host:
+  mode: auto
+  hash-size: 65536
+  prealloc: 1000
+  memcap: 16777216
+
+# Flow settings
+flow:
+  memcap: 32mb
+  hash-size: 65536
+  prealloc: 10000
+  emergency-recovery: 30
+
+# App-layer settings
+app-layer:
+  protocols:
+    smtp:
+      enabled: yes
+      raw-extraction: no
+    http:
+      enabled: yes
+      libhtp:
+        default-config:
+          personality: Generic
+          request-body-limit: 4096
+          response-body-limit: 4096
+          request-body-minimal-inspect-size: 32768
+          response-body-minimal-inspect-size: 32768
+          request-body-inspect-window: 4096
+          response-body-inspect-window: 4096
+          http2: yes
+    dns:
+      enabled: yes
+      tcp-ports: [53]
+      udp-ports: [53]
+      request-types: [A, AAAA, CNAME, MX, NS, PTR, TXT, SOA]
+      response-types: [A, AAAA, CNAME, MX, NS, PTR, TXT, SOA]
+    tls:
+      enabled: yes
+      handshake-validation: no
+      session-resumption: no
+      detection-ports:
+        client: [443, 8443]
+        server: [443, 8443]
+    ssh:
+      enabled: yes
+      hmac-check: yes
+    dcerpc:
+      enabled: no
+    nfs:
+      enabled: no
+    smb:
+      enabled: no
+    ftp:
+      enabled: yes
+    tftp:
+      enabled: no
+    ikev2:
+      enabled: no
+      require-payload: yes
+    krb5:
+      enabled: no
+    rdp:
+      enabled: no
+    snmp:
+      enabled: no
+    sip:
+      enabled: no
+    modbus:
+      enabled: no
+      detection-ports:
+        client: [502]
+        server: [502]
+    dnp3:
+      enabled: no
+      detection-ports:
+        client: [20000]
+        server: [20000]
+    enip:
+      enabled: no
+      detection-ports:
+        client: [44818]
+        server: [44818]
+    quic:
+      enabled: no
+    dhcp:
+      enabled: no
+    rfb:
+      enabled: no
+    mqtt:
+      enabled: no
+    mysql:
+      enabled: no
+    postgresql:
+      enabled: no
+    app-layer-events:
+      max-rows: 4096
+
+# Stream tracking
+stream:
+  memcap: 32mb
+  checksum-validation: yes
+  prealloc-sessions: 2000
+  midstream: no
+  async-oneside: no
+  inline: no
+  drop-invalid: no
+  bypass: no
+  events: true
+  http:
+    request-body-limit: 100kb
+    response-body-limit: 100kb
+    tcp:
+      max-pending: 1000
+      max-window: 1000000
+      reorder-buffer-size: 10000
+      reassembly-depth: 1048576
+    udp:
+      max-pending: 1000
+      max-window: 1000000
+      reassembly-depth: 1048576
+
+# Asn1 decoding
+asn1-max-frames: 256
+
+# NFQ settings
+nfq:
+  - repeat-mark: 1
+    repeat-mask: 1
+
+# IP reputation
+reputation:
+  categories:
+    - spammer
+    - malware
+    - infected
+    - scanner
+    - botnet
+    - phishing
+    - malicious
+  default-whitelist: false
+  paths:
+    - /etc/suricata/iprep/
+
+# Capture settings
+capture:
+  disable-offloading: true
+
+# Napatech settings
+napatech:
+  use_streams: 4
+  enable_flow_stats: false
+
+# Magic file
+magic-file: /usr/share/file/magic.mgc
+

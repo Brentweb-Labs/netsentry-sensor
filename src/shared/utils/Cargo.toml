@@ -1,0 +1,24 @@
+[package]
+name = "idps-utils"
+version = "0.1.0"
+edition = "2021"
+description = "Common utilities for IDPS services"
+authors = ["IDPS Team"]
+
+[dependencies]
+# Workspace dependencies
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+anyhow = { workspace = true }
+regex = { workspace = true }
+ipnetwork = { workspace = true }
+
+# Additional dependencies
+env_logger = "0.11"
+chrono = { workspace = true }
+rand = "0.8"
+
+# Internal dependencies
+idps-types = { path = "../types" }

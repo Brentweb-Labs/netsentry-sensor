@@ -1,0 +1,61 @@
+%YAML 1.1
+---
+# Suricata configuration for Raspberry Pi
+
+# Set default log directory
+default-log-dir: /var/log/suricata
+
+# Set run mode
+run-mode: autofp
+
+# Network configuration
+af-packet:
+  - interface: eth0
+    cluster-type: cluster_flow
+    defrag: yes
+    cluster-id: 99
+    copy-iface: yes
+
+# Logging configuration
+outputs:
+  - eve-log:
+      enabled: yes
+      type: file
+      filename: eve.json
+      types:
+        - alert:
+          tagged-packets: yes
+        - http:
+          extended: yes
+        - dns:
+          enabled: yes
+          version: 2
+        - tls:
+          enabled: yes
+          extended: yes
+        - files:
+          force-magic: yes
+          force-hash: [md5, sha1, sha256]
+
+# Detection engine
+detect:
+  profile: medium
+  custom-values:
+    toclient-chunk-size: 2560
+    toserver-chunk-size: 2560
+
+# Rules configuration
+default-rule-path: /var/lib/suricata/rules
+rule-files:
+  - suricata.rules
+
+# Performance tuning
+threading:
+  set-cpu-affinity: yes
+  cpu-affinity:
+    - management-cpu-set:
+        cpu: [ 0 ]
+    - receive-cpu-set:
+        cpu: [ 0 ]
+    - worker-cpu-set:
+        cpu: [ "all" ]

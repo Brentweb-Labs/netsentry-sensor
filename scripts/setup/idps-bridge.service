@@ -1,0 +1,14 @@
+[Unit]
+Description=IDPS Network Bridge
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/setup-bridge-unified.sh setup
+ExecStop=/usr/local/bin/setup-bridge-unified.sh revert
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

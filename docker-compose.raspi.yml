@@ -1,0 +1,331 @@
+services:
+  # WireGuard VPN Tunnel — Pi client connecting to VPS (10.10.0.1)
+  wireguard:
+    build:
+      context: .
+      dockerfile: raspi/wireguard/Dockerfile
+    platform: linux/arm64
+    container_name: idps-wireguard
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - WG_PRIVATE_KEY=${WG_PRIVATE_KEY}
+      - WG_VPS_PUBLIC_KEY=${WG_VPS_PUBLIC_KEY}
+      - VPS_PUBLIC_IP=${VPS_PUBLIC_IP:-178.104.6.176}
+      - WG_ADDRESS=${WG_ADDRESS:-10.10.0.2/24}
+      - WG_PORT=${WG_PORT:-51820}
+      - WG_ALLOWED_IPS=${WG_ALLOWED_IPS:-10.10.0.1/32}
+      - WG_KEEPALIVE=${WG_KEEPALIVE:-25}
+    volumes:
+      - /lib/modules:/lib/modules:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wg show wg0 > /dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: 32M
+
+  # Core Infrastructure - Raspberry Pi 4 Optimized (ARM64)
+  mongodb:
+    image: mongo:4.4.18
+    platform: linux/arm64
+    container_name: idps-mongodb-pi
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-SecurePassword123!}
+      MONGO_INITDB_DATABASE: idps_database
+    volumes:
+      - mongodb_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "mongo", "--eval", "db.adminCommand('ping')"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 60s
+
+  redis:
+    image: redis:7.4-alpine
+    platform: linux/arm64
+    container_name: idps-redis-pi
+    restart: unless-stopped
+    network_mode: host
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-RedisSecure123!} --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-RedisSecure123!}", "ping"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+  # Network Filter - Raspberry Pi Specific (sits between modem/router)
+  network-filter:
+    build:
+      context: .
+      dockerfile: src/services/edge/network-filter/Dockerfile
+    platform: linux/arm64
+    container_name: idps-network-filter-pi
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    environment:
+      - FILTER_MODE=bridge
+      - LOG_LEVEL=info
+    volumes:
+      - ./logs/network-filter:/var/log/idps/network-filter
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # Suricata - Main IDPS Service (Raspberry Pi Optimized)
+  suricata:
+    image: jasonish/suricata:7.0
+    platform: linux/arm64
+    container_name: idps-suricata-pi
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+      - SYS_ADMIN
+    environment:
+      - SURICATA_RUN_MODE=autofp
+      - SURICATA_IFACE=${SURICATA_IFACE:-br0}
+      - SURICATA_CONFIG_DIR=/etc/suricata
+      - SURICATA_LOG_DIR=/var/log/suricata
+      - SURICATA_RULES_DIR=/var/lib/suricata/rules
+    volumes:
+      - ./config/suricata/suricata.yaml:/etc/suricata/suricata.yaml:ro
+      - ./data/suricata/rules:/var/lib/suricata/rules
+      - ./data/logs/suricata:/var/log/suricata
+      - /var/run/suricata:/var/run/suricata
+      - ./raspi/suricata-entrypoint.sh:/entrypoint-idps.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint-idps.sh"]
+    depends_on:
+      network-filter:
+        condition: service_started
+      mongodb:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # Raspberry Pi Collector - Edge Data Processing
+  raspi-collector:
+    build:
+      context: .
+      dockerfile: src/services/edge/raspi-collector/Dockerfile
+    platform: linux/arm64
+    container_name: idps-raspi-collector-pi
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - COLLECTOR_MODE=edge
+      - MONGODB_URI=mongodb://admin:${MONGO_ROOT_PASSWORD:-SecurePassword123!}@localhost:27017/idps_database?authSource=admin
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-RedisSecure123!}@localhost:6379
+      - VPS_ENDPOINT=${VPS_ENDPOINT}
+      - VPS_WS_URL=${VPS_WS_URL}
+      - API_KEY=${API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - NETWORK_FILTER_URL=http://localhost:8092/api/v1
+      - RULE_ENGINE_URL=http://localhost:8094/api/v1
+      - SURICATA_EVE_PATH=/var/log/suricata/eve.json
+      - LOG_LEVEL=info
+    volumes:
+      - ./logs/raspi-collector:/var/log/idps/raspi-collector
+      - ./data/logs/suricata:/var/log/suricata:ro
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      suricata:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # Packet Processor - Raw pcap capture + fail-open WebSocket streaming to VPS
+  packet-processor:
+    build:
+      context: .
+      dockerfile: src/services/edge/packet-processor/Dockerfile
+    platform: linux/arm64
+    container_name: idps-packet-processor-pi
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    environment:
+      - PCAP_INTERFACE=${PCAP_INTERFACE:-eth0}
+      - PACKET_STREAM_WS_URL=${PACKET_STREAM_WS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - MONGODB_URI=mongodb://admin:${MONGO_ROOT_PASSWORD:-SecurePassword123!}@localhost:27017/idps_database?authSource=admin
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-RedisSecure123!}@localhost:6379
+      - LOG_LEVEL=info
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # Rule Engine - Receives Suricata rules from VPS, writes to rules file, reloads Suricata
+  rule-engine:
+    build:
+      context: .
+      dockerfile: src/services/edge/rule-engine/Dockerfile
+    platform: linux/arm64
+    container_name: idps-rule-engine-pi
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - RULE_ENGINE_PORT=8094
+      - VPS_WS_URL=${VPS_WS_URL}
+      - JWT_SECRET=${JWT_SECRET}
+      - SURICATA_SOCKET_PATH=/var/run/suricata/suricata-command.socket
+      - LOG_LEVEL=info
+    volumes:
+      - ./data/suricata/rules:/etc/suricata/rules
+      - /var/run/suricata:/var/run/suricata
+    depends_on:
+      - suricata
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M
+
+  # Telemetry Service - Edge Hardware Metrics
+  idps-telemetry:
+    build:
+      context: .
+      dockerfile: src/services/edge/telemetry/Dockerfile
+    platform: linux/arm64
+    container_name: idps-telemetry-pi
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - DEVICE_ID=${DEVICE_ID:-raspi-edge-01}
+      - VPS_URL=${VPS_API_URL}
+      - JWT_SECRET=${JWT_SECRET:-}
+      - COLLECTION_INTERVAL_SECS=${COLLECTION_INTERVAL_SECS:-10}
+      - TELEMETRY_PORT=8096
+      - RUST_LOG=info
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    depends_on:
+      - raspi-collector
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+        reservations:
+          memory: 32M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8096/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # System Monitoring - Node Exporter
+  node-exporter:
+    image: prom/node-exporter:v1.9.0
+    platform: linux/arm64
+    container_name: idps-node-exporter-pi
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - '--path.rootfs=/host'
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.systemd'
+      - '--collector.processes'
+      - '--collector.cpu'
+      - '--collector.meminfo'
+      - '--collector.diskstats'
+      - '--collector.netdev'
+    volumes:
+      - /:/host:ro,rslave
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  # Simple Web Interface - Raspberry Pi Optimized
+  pi-dashboard:
+    build:
+      context: .
+      dockerfile: raspi/nginx/Dockerfile
+    platform: linux/arm64
+    container_name: idps-pi-dashboard
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./src/tools/dashboard/dist/ng-tailadmin/browser:/usr/share/nginx/html:ro
+    depends_on:
+      - raspi-collector
+      - ids-pi
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+volumes:
+  mongodb_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/data/mongodb
+  redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/data/redis

@@ -1,0 +1,32 @@
+[package]
+name = "idps-packet-processor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Workspace dependencies
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }
+futures-util = { workspace = true }
+
+# Service-specific dependencies
+pcap = "2.0"
+etherparse = "0.15"
+dashmap = { workspace = true }
+notify = "7.0"
+reqwest = { workspace = true }
+warp = "0.3"
+env_logger = "0.11"
+tracing = { workspace = true }
+tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
+url = "2.5"
+
+# Shared libraries
+idps-types = { path = "../../../shared/types" }
+idps-protocols = { path = "../../../shared/protocols" }
+idps-utils = { path = "../../../shared/utils" }

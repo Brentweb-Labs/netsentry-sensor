@@ -1,0 +1,16 @@
+[package]
+name = "idps-types"
+version = "0.1.0"
+edition = "2021"
+description = "Shared data types for IDPS services"
+authors = ["IDPS Team"]
+
+[dependencies]
+# Workspace dependencies
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+uuid = { workspace = true }
+
+# Additional dependencies
+regex = { workspace = true }

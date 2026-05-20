@@ -1,0 +1,31 @@
+[package]
+name = "idps-rule-engine"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "idps-rule-engine"
+path = "src/main.rs"
+
+[lib]
+name = "idps_rule_engine"
+path = "src/lib.rs"
+
+[dependencies]
+# Workspace dependencies
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+anyhow = { workspace = true }
+regex = { workspace = true }
+chrono = { workspace = true }
+
+# HTTP server for the REST API
+axum = { workspace = true }
+env_logger = { workspace = true }
+
+# Shared libraries
+idps-types = { path = "../../../shared/types" }
+idps-protocols = { path = "../../../shared/protocols" }
+idps-utils = { path = "../../../shared/utils" }

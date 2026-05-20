@@ -1,0 +1,12 @@
+  data/
+  logs/
+  scans/
+  .env
+  .env.*
+  .git/
+  .gitignore
+  target/
+  node_modules/
+  dist/
+  docs/
+  *.md

@@ -1,0 +1,32 @@
+[package]
+name = "idps-network-filter"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Workspace dependencies
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+clap = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+dashmap = { workspace = true }
+futures-util = { workspace = true }
+mongodb = { workspace = true }
+
+# Service-specific dependencies
+pcap = "2.0"
+etherparse = "0.15"
+tokio-tungstenite = { workspace = true }
+libc = { workspace = true }
+nix = { version = "0.29", features = ["socket"] }
+env_logger = { workspace = true }
+axum = { workspace = true }
+tower-http = { workspace = true, features = ["cors"] }
+
+# Shared libraries
+idps-types = { path = "../../../shared/types" }
+idps-protocols = { path = "../../../shared/protocols" }
+idps-utils = { path = "../../../shared/utils" }

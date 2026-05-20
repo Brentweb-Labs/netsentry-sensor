@@ -1,0 +1,21 @@
+[package]
+name = "idps-protocols"
+version = "0.1.0"
+edition = "2021"
+description = "Communication protocols for IDPS services"
+authors = ["IDPS Team"]
+
+[dependencies]
+# Workspace dependencies
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Protocol-specific dependencies
+tokio-tungstenite = "0.26"
+futures-util = { workspace = true }
+
+# Internal dependencies
+idps-types = { path = "../types" }

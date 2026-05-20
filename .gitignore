@@ -1,0 +1,106 @@
+# IDPS Project .gitignore
+
+# Build artifacts
+target/
+dist/
+build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Rust
+Cargo.lock
+**/*.rs.bk
+
+# Node.js/Angular
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.eslintcache
+
+# Angular specific
+.angular/
+.next/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.idps
+.env.raspi
+.env.vps
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+idps.code-workspace
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Security certificates
+*.pem
+*.key
+*.crt
+*.p12
+
+# Backup files
+*.bak
+*.backup
+
+# Test coverage
+coverage/
+*.lcov
+
+# Rust analyzer
+.rust-analyzer/
+
+# Docker volumes
+data/
+logs/
+
+# Suricata logs (keep structure, ignore content)
+*.log
+eve.json
+fast.log
+stats.log
+
+# MongoDB data
+mongo-data/
+
+# Temporary
+v1-Eindwerk/
+
+# Internal docs (ignored working notes)

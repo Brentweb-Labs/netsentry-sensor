@@ -2,15 +2,29 @@
 
 ## Building
 
-### Rust
+### Rust (sensor services)
+
+The sensor (`netsentry-sensor`) is a separate Rust workspace from the cloud. Build from within this repo:
+
 ```bash
-cargo check --workspace                    # fast check, no binaries
-cargo build --workspace                    # build everything
-cargo build -p idps-api-gateway            # single service
-cargo build --workspace --release          # optimised for deployment
+cargo check --workspace                    # fast type-check, no binaries
+cargo build --workspace                    # build all edge services
+cargo build -p idps-raspi-collector        # single service
+cargo build -p idps-network-filter
+cargo build -p idps-rule-engine
+cargo build --workspace --release          # optimised — used by Dockerfiles
 ```
 
-### Angular dashboard
+Cross-compiling for ARM64 on x86 host:
+```bash
+rustup target add aarch64-unknown-linux-gnu
+cargo build --workspace --release --target aarch64-unknown-linux-gnu
+```
+
+> Cloud services (`api-gateway`, `threat-intel`, etc.) live in the `netsentry-cloud` repo and have their own workspace.
+
+### Angular edge dashboard
+
 ```bash
 cd src/tools/dashboard
 npm install          # first time only
@@ -26,7 +40,7 @@ npm run build        # production build → dist/ng-tailadmin/browser/
 
 ```bash
 cargo test --workspace
-cargo test -p idps-api-gateway
+cargo test -p idps-raspi-collector
 cargo test -- --nocapture
 ```
 
@@ -37,21 +51,21 @@ cargo test -- --nocapture
 ```bash
 export RUST_LOG=debug
 
-# Spin up dependencies
+# Local MongoDB for raspi-collector (Pi stack uses mongo 4.4.18 in prod)
 docker run -d -p 27017:27017 --name mongodb mongo:7.0
-docker run -d -p 6379:6379 --name redis redis:7.4-alpine
 
-# API Gateway
-cargo run -p idps-api-gateway
+# Run collector against a local VPS (point to your cloud instance or localhost)
+export VPS_API_URL=http://localhost:8080
+cargo run -p idps-raspi-collector
 
-# Dashboard (separate terminal) — proxies /api/vps → localhost:8080
+# Dashboard (separate terminal)
 cd src/tools/dashboard && npm run start
 ```
 
-Or use the full VPS stack:
+Or bring up the full Pi stack:
 ```bash
-docker compose -f docker-compose.vps.yml up -d
-docker compose -f docker-compose.vps.yml logs -f api-gateway
+docker compose -f docker-compose.raspi.yml up -d
+docker compose -f docker-compose.raspi.yml logs -f raspi-collector
 ```
 
 ---

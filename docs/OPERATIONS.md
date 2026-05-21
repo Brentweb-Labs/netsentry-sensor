@@ -63,23 +63,40 @@
 
 All endpoints require `X-API-Key: <API_KEY>` except `/health`.
 
-| Method | Endpoint | Description |
-|---|---|---|
-| GET | `/api/vps/health` | Health check (no auth) |
-| GET | `/api/vps/status` | Event pipeline status |
-| GET | `/api/vps/events` | Security events (paginated) |
-| GET | `/api/vps/alerts/statistics` | Alert statistics |
-| GET | `/api/vps/metrics` | System metrics |
-| GET | `/api/vps/services/status` | All service health |
-| GET | `/api/vps/connection/raspi-vps` | Pi↔VPS connection status |
-| POST | `/api/vps/traffic` | Ingest single event from Pi |
-| POST | `/api/vps/traffic/batch` | Ingest batch of events from Pi |
-| POST | `/api/prevention/block` | Manually block an IP |
-| POST | `/api/prevention/unblock` | Manually unblock an IP |
-| GET | `/api/prevention/blocked` | List blocked IPs |
-| DELETE | `/api/prevention/blocked/{ip}` | Unblock specific IP |
-| WS | `wss://idps.brentweb.eu/ws` | Dashboard real-time updates |
-| WS | `wss://idps.brentweb.eu/ws/raspi` | Pi command channel |
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/health` | none | Health check |
+| GET | `/api/status` | key | Event pipeline status |
+| GET | `/api/events` | key | Security events (paginated, tenant-scoped) |
+| GET | `/api/alerts/statistics` | key | Alert statistics (tenant-scoped) |
+| GET | `/api/metrics` | key | System metrics |
+| GET | `/api/services/status` | key | All service health |
+| GET | `/api/connection/raspi-vps` | key | Pi↔VPS connection status |
+| POST | `/api/traffic` | key | Ingest single Suricata event from Pi |
+| POST | `/api/traffic/batch` | key | Ingest batch of events from Pi |
+| POST | `/api/prevention/block` | key | Manually block an IP |
+| POST | `/api/prevention/unblock` | key | Manually unblock an IP |
+| GET | `/api/prevention/blocked` | key | List blocked IPs (tenant-scoped) |
+| DELETE | `/api/prevention/blocked/{ip}` | key | Unblock specific IP |
+| GET | `/api/prevention/stats` | key | Prevention statistics |
+| POST | `/api/suricata/start` | key | Send start command to Suricata |
+| POST | `/api/suricata/stop` | key | Send stop command to Suricata |
+| POST | `/api/suricata/reload` | key | Reload Suricata rules |
+| GET | `/api/billing/status` | key | Stripe subscription status |
+| POST | `/api/billing/checkout` | key | Create Stripe Checkout session |
+| POST | `/api/billing/webhook` | none | Stripe webhook receiver (HMAC-verified) |
+| GET | `/api/alerts/rules` | key | List alert rules (email/SMS) |
+| POST | `/api/alerts/rules` | key | Create alert rule |
+| DELETE | `/api/alerts/rules/{id}` | key | Delete alert rule |
+| GET | `/api/reports/weekly` | key | Download latest weekly PDF report |
+| GET | `/api/reports/history` | key | List generated reports (metadata only) |
+| PUT | `/api/reports/config` | key | Update PDF branding config |
+| POST | `/api/login` | none | Exchange API key for JWT |
+| WS | `/ws` | key | Dashboard real-time updates |
+| WS | `/ws/raspi` | key | Pi command channel (block/rule) |
+| WS | `/ws/packets` | key | Raw packet stream from Pi |
+
+`auth: key` means `X-API-Key: <API_KEY>` header. JWT (`Authorization: Bearer <token>`) is accepted on all `key` endpoints as an alternative.
 
 ---
 
@@ -146,12 +163,6 @@ sudo wg show wg0            # should show new peer with recent handshake
 
 ## Troubleshooting
 
-**Elasticsearch fails to start**
-```bash
-sudo sysctl -w vm.max_map_count=262144
-sudo chown -R 1000:1000 /home/brent/idps/data/elasticsearch
-```
-
 **Service not reachable via domain**
 ```bash
 docker inspect idps-api-gateway-vps | grep -A5 Networks
@@ -175,8 +186,8 @@ docker logs idps-raspi-collector-pi --tail 30 | grep -i traffic
 
 **MongoDB connection refused**
 ```bash
-docker exec idps-mongodb-pi mongo --eval "db.adminCommand('ping')"       # Pi
-docker exec idds-mongodb-vps mongosh --eval "db.adminCommand('ping')"    # VPS
+docker exec idps-mongodb-pi mongosh --eval "db.adminCommand('ping')"     # Pi
+docker exec idps-mongodb-vps mongosh --eval "db.adminCommand('ping')"    # VPS
 ```
 
 **Traefik returns 404 on /api/vps/***

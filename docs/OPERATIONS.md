@@ -26,9 +26,22 @@
 | `RASPI_ENDPOINT` | `http://10.10.0.2:8080` | Pi raspi-collector URL (WireGuard tunnel) |
 | `AUTO_BLOCK_ENABLED` | `false` | Set `true` to auto-apply iptables rules on Pi |
 | `API_KEY` | *(required)* | API key for all authenticated endpoints |
+| `VPS_API_KEY` | *(required)* | Used by packet-processor when connecting to VPS WebSocket |
 | `MONGO_ROOT_PASSWORD` | `SecurePassword123!` | **Change in production** |
-| `REDIS_PASSWORD` | `RedisSecure123!` | **Change in production** |
 | `GRAFANA_PASSWORD` | `Admin123!` | **Change in production** |
+| `TENANT_ID` | `default` | Tenant ID embedded in JWT; leave `default` for single-tenant |
+| `THREAT_INTEL_URL` | `http://threat-intel:8094` | Internal URL for IP reputation lookups |
+| `STRIPE_SECRET_KEY` | *(required for billing)* | Stripe secret key from dashboard.stripe.com |
+| `STRIPE_PRICE_ID` | *(required for billing)* | Stripe price ID for the Cloud plan |
+| `STRIPE_WEBHOOK_SECRET` | *(required for billing)* | Stripe webhook signing secret |
+| `SMTP_HOST` | — | SMTP server for email alerts |
+| `SMTP_PORT` | `587` | SMTP port (STARTTLS) |
+| `SMTP_USERNAME` | — | SMTP login |
+| `SMTP_PASSWORD` | — | SMTP password |
+| `SMTP_FROM` | `alerts@netsentry.io` | Alert sender address |
+| `TWILIO_ACCOUNT_SID` | — | Twilio account SID for SMS alerts |
+| `TWILIO_AUTH_TOKEN` | — | Twilio auth token |
+| `TWILIO_FROM_NUMBER` | — | Twilio sender number (E.164) |
 
 ---
 

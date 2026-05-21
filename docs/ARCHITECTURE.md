@@ -112,17 +112,20 @@ Setup/teardown: `scripts/setup/setup-bridge-unified.sh [setup|revert|status|trou
 
 All cloud services run on the `idps-net` internal Docker network. Services that need to be reachable via the public domain also join the external `proxy` network, where they are discovered by the Traefik instance that runs in a separate stack.
 
-| Service | Container | Exposed via | Role | Status |
-|---|---|---|---|---|
-| api-gateway | `idps-api-gateway-vps` | `idps.brentweb.eu/api/vps`, `/ws` | WebSocket hub + threat analysis + REST API | Running |
-| threat-intel | `idps-threat-intel-vps` | internal only | IP reputation service | Stubbed (TCP stub only) |
-| packet-analyzer | `idps-packet-analyzer-vps` | host network | Deep packet inspection | Running |
-| mongodb | `idps-mongodb-vps` | internal only | Central event, rule, and alert storage (v8.0) | Running |
-| redis | `idps-redis-vps` | internal only | Cache | Running |
-| elasticsearch | `idps-elasticsearch-vps` | internal only | Log search index | Running |
-| vps-dashboard | `idps-vps-dashboard` | `idps.brentweb.eu` | Nginx serving Angular build | Running |
+| Service | Container | Exposed via | Role |
+|---|---|---|---|
+| api-gateway | `idps-api-gateway-vps` | `idps.brentweb.eu/api/vps`, `/ws` | WebSocket hub + threat analysis + REST API + billing + alerting + reports |
+| vps-processor | `idps-vps-processor-vps` | internal (8093) | Raspi connection manager |
+| threat-intel | `idps-threat-intel-vps` | internal (8094) | IP reputation — Tor exits + Feodo blocklist, refreshed hourly |
+| packet-analyzer | `idps-packet-analyzer-vps` | host network | Deep packet inspection |
+| rule-generator | library crate | — | Suricata/iptables rule generation (shared lib) |
+| mongodb | `idps-mongodb-vps` | internal only | Central event, rule, and alert storage (v8.0, db: `idps_database`) |
+| log-processor | `idps-log-processor-vps` | internal only | Suricata eve.json ingest pipeline |
+| vps-dashboard | `idps-vps-dashboard` | `idps.brentweb.eu` | Nginx serving Angular build |
 
-> Prometheus and Grafana are **not** managed by `docker-compose.vps.yml`. Their configuration lives in `ops/monitoring/` (scrape targets, dashboards, datasources) and must be run as a separate monitoring stack. The api-gateway exposes a `/metrics` Prometheus endpoint.
+> Redis and Elasticsearch are **not** part of the cloud stack — they were removed to reduce memory footprint. All persistence goes through MongoDB (`idps_database`).
+
+> Prometheus and Grafana are **not** managed by `docker-compose.vps.yml`. Their configuration lives in `ops/monitoring/` and must be run as a separate monitoring stack. The api-gateway exposes a `/metrics` Prometheus endpoint.
 
 **Suricata does not run on the VPS.** The Pi is the inline sensor; its eve.json is forwarded to the VPS by raspi-collector. The VPS analyses those events and generates rules sent back to the Pi.
 
@@ -205,10 +208,10 @@ All requests from raspi-collector to the VPS carry `X-API-Key: <API_KEY>` header
 ```
 Pi                         VPS                        Storage
   │                          │                            │
-  │── traffic events ───────►│── persist ────────────────►│ MongoDB idps.events
+  │── traffic events ───────►│── persist ────────────────►│ MongoDB idps_database.events
   │                          │── threat detected          │
-  │                          │── persist rule ───────────►│ MongoDB security_rules
-  │                          │── persist alert ──────────►│ MongoDB alerts
+  │                          │── persist rule ───────────►│ MongoDB idps_database.security_rules
+  │                          │── persist alert ──────────►│ MongoDB idps_database.alerts
   │◄─ block_command ─────────│                            │
   │◄─ rule_update ───────────│                            │
   │                          │                            │

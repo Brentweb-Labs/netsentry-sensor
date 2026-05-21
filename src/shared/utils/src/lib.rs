@@ -1,7 +1,7 @@
 use std::net::IpAddr;
 use std::time::Duration;
 use std::io::Write;
-use std::sync::{Arc, atomic::{AtomicUsize, Ordering}};
+
 use anyhow::{Result, Context};
 use ipnetwork::IpNetwork;
 use log::LevelFilter;

@@ -93,6 +93,7 @@ services:
     environment:
       - FILTER_MODE=bridge
       - LOG_LEVEL=info
+      - MONGODB_URI=mongodb://admin:${MONGO_ROOT_PASSWORD:-SecurePassword123!}@localhost:27017/idps_database?authSource=admin
     volumes:
       - ./logs/network-filter:/var/log/idps/network-filter
     depends_on:
@@ -192,11 +193,11 @@ services:
       - NET_RAW
       - NET_ADMIN
     environment:
-      - PCAP_INTERFACE=${PCAP_INTERFACE:-eth0}
+      - CAPTURE_INTERFACE=${PCAP_INTERFACE:-eth0}
+      - VPS_ENDPOINT=${VPS_ENDPOINT}
       - PACKET_STREAM_WS_URL=${PACKET_STREAM_WS_URL}
-      - JWT_SECRET=${JWT_SECRET}
-      - MONGODB_URI=mongodb://admin:${MONGO_ROOT_PASSWORD:-SecurePassword123!}@localhost:27017/idps_database?authSource=admin
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-RedisSecure123!}@localhost:6379
+      - API_KEY=${API_KEY}
+      - NETWORK_FILTER_URL=http://localhost:8092/api/v1
       - LOG_LEVEL=info
     depends_on:
       mongodb:
@@ -310,7 +311,6 @@ services:
       - ./src/tools/dashboard/dist/ng-tailadmin/browser:/usr/share/nginx/html:ro
     depends_on:
       - raspi-collector
-      - ids-pi
     deploy:
       resources:
         limits:

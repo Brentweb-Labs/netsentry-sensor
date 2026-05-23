@@ -1,0 +1,93 @@
+# =============================================================================
+# NetSentry SPAN Topology Docker Compose
+# =============================================================================
+# This configuration is for the Out-of-Band SPAN/Mirror Port topology.
+# The Pi is a passive sensor, not a gateway/bridge.
+#
+# Topology: [Modem] -> [Router] -> [Switch] -> [Pi IDPS]
+#
+# Usage:
+#   docker-compose -f docker-compose.raspi.yml -f docker-compose.span.yml up -d
+# =============================================================================
+
+services:
+  # Firewall Forwarder - Routes block requests to router (NEW for SPAN topology)
+  firewall-forwarder:
+    build:
+      context: .
+      dockerfile: src/services/edge/firewall-forwarder/Dockerfile
+    platform: linux/arm64
+    container_name: idps-firewall-forwarder
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - FIREWALL_API_URL=${FIREWALL_API_URL:-http://192.168.1.1}
+      - FIREWALL_API_KEY=${FIREWALL_API_KEY:-}
+      - LOG_LEVEL=info
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8092/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+
+  # Suricata - Now monitors SPAN interface (not bridge)
+  suricata:
+    image: jasonish/suricata:7.0
+    platform: linux/arm64
+    container_name: idps-suricata-pi
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+      - SYS_ADMIN
+    environment:
+      - SURICATA_RUN_MODE=autofp
+      # SPAN TOPOLOGY CHANGE: Monitor eth0 (connected to switch mirror port)
+      - SURICATA_IFACE=${SURICATA_IFACE:-eth0}
+      - SURICATA_CONFIG_DIR=/etc/suricata
+      - SURICATA_LOG_DIR=/var/log/suricata
+      - SURICATA_RULES_DIR=/var/lib/suricata/rules
+    volumes:
+      - ./config/suricata/suricata.yaml:/etc/suricata/suricata.yaml:ro
+      - ./data/suricata/rules:/var/lib/suricata/rules
+      - ./data/logs/suricata:/var/log/suricata
+      - /var/run/suricata:/var/run/suricata
+      - ./raspi/suricata-entrypoint.sh:/entrypoint-idps.sh:ro
+    entrypoint: ["/bin/sh", "/entrypoint-idps.sh"]
+    depends_on:
+      firewall-forwarder:
+        condition: service_started
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+        reservations:
+          memory: 512M
+
+  # packet-processor - Also monitors SPAN interface (eth0)
+  packet-processor:
+    build:
+      context: .
+      dockerfile: src/services/edge/packet-processor/Dockerfile
+    platform: linux/arm64
+    container_name: idps-packet-processor-pi
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_RAW
+    environment:
+      # SPAN TOPOLOGY: Capture from eth0 (SPAN/mirror port)
+      - CAPTURE_INTERFACE=${CAPTURE_INTERFACE:-eth0}
+      - VPS_ENDPOINT=${VPS_ENDPOINT}
+      - PACKET_STREAM_WS_URL=${PACKET_STREAM_WS_URL}
+      - API_KEY=${API_KEY}
+      - NETWORK_FILTER_URL=http://localhost:8092/api/v1
+    deploy:
+      resources:
+        limits:
+          memory: 256M

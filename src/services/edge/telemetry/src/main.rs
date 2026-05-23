@@ -48,6 +48,8 @@ pub struct ThresholdAlert {
 struct AppState {
     latest_metrics: Arc<RwLock<Option<SystemMetrics>>>,
     device_id: String,
+    sensor_id: String,
+    tenant_id: String,
 }
 
 // ── Metric collection ────────────────────────────────────────────────────────
@@ -234,6 +236,9 @@ async fn push_to_vps(
     alerts: &[ThresholdAlert],
 ) {
     let payload = serde_json::json!({
+        "sensor_id": state.sensor_id,
+        "tenant_id": state.tenant_id,
+        "device_id": state.device_id,
         "metrics": metrics,
         "alerts": alerts,
     });
@@ -375,6 +380,9 @@ async fn main() -> anyhow::Result<()> {
             .unwrap_or_else(|_| "raspi-edge".to_string())
     });
 
+    let sensor_id = std::env::var("SENSOR_ID").unwrap_or_else(|_| "default".to_string());
+    let tenant_id = std::env::var("TENANT_ID").unwrap_or_else(|_| "default".to_string());
+
     let vps_url =
         std::env::var("VPS_URL").unwrap_or_else(|_| "http://api-gateway:8080".to_string());
 
@@ -391,13 +399,15 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(8096);
 
     info!(
-        "Starting IDPS Telemetry Service — device_id={}, port={}, vps={}",
-        device_id, service_port, vps_url
+        "Starting IDPS Telemetry Service — sensor_id={}, tenant_id={}, port={}, vps={}",
+        sensor_id, tenant_id, service_port, vps_url
     );
 
     let state = Arc::new(AppState {
         latest_metrics: Arc::new(RwLock::new(None)),
         device_id: device_id.clone(),
+        sensor_id: sensor_id.clone(),
+        tenant_id: tenant_id.clone(),
     });
 
     // Spawn background collection loop

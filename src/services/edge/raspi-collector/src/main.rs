@@ -345,7 +345,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Get VPS endpoint from environment
     let vps_endpoint =
-        std::env::var("VPS_ENDPOINT").unwrap_or_else(|_| "http://vps-processor:8090".to_string());
+        std::env::var("VPS_ENDPOINT").unwrap_or_else(|_| "http://vps-processor:8093".to_string());
     let api_key = std::env::var("API_KEY").unwrap_or_default();
 
     let vps_client = Client::builder()
@@ -521,6 +521,24 @@ async fn run_vps_command_listener(
                     dbg.connected = true;
                     dbg.last_connected_at = Some(Utc::now());
                 }
+
+                // Send sensor registration to VPS
+                let sensor_id = std::env::var("SENSOR_ID").unwrap_or_else(|_| "default".to_string());
+                let tenant_id = std::env::var("TENANT_ID").unwrap_or_else(|_| "default".to_string());
+                let hostname = hostname::get().map(|h| h.to_string_lossy().to_string()).unwrap_or_default();
+
+                let registration = serde_json::json!({
+                    "type": "sensor_register",
+                    "sensor_id": sensor_id,
+                    "tenant_id": tenant_id,
+                    "hostname": hostname,
+                    "capabilities": ["ids", "ips", "packet-capture"],
+                });
+
+                if let Err(e) = ws_stream.send(Message::Text(registration.to_string())).await {
+                    warn!("Failed to send sensor registration: {}", e);
+                }
+
                 // Replay all active blocks so offline-issued blocks take effect
                 sync_active_blocks(&vps_api_url, &network_filter_url, &api_key, &client).await;
                 // Probe network-filter reachability

@@ -3,13 +3,14 @@ resolver = "2"
 members = [
     # Shared libraries
     "src/shared/types",
-    "src/shared/protocols", 
+    "src/shared/protocols",
     "src/shared/utils",
     "src/shared/config",
-    
+
     # Edge services (Raspberry Pi)
     "src/services/edge/packet-processor",
-    "src/services/edge/network-filter", 
+    "src/services/edge/network-filter",
+    "src/services/edge/firewall-forwarder",
     "src/services/edge/rule-engine",
     "src/services/edge/raspi-collector",
     "src/services/edge/telemetry",

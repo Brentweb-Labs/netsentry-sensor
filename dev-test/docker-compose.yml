@@ -1,0 +1,265 @@
+# =============================================================================
+# NetSentry Dev/Test Simulation - Docker Compose
+# =============================================================================
+# Production-grade simulation of enterprise network topology for IDPS testing.
+# Mirrors the Pi sensor topology using Docker containers on a single host.
+#
+# Topology: Attacker -> Suricata (Sensor) -> Victim
+# Network: Isolated bridge network (10.10.10.0/24)
+#
+# Usage:
+#   cd dev-test
+#   docker compose up -d                # Start all containers
+#   docker compose logs -f              # View all logs
+#   docker compose exec attacker /bin/bash  # Enter attacker container
+#
+# Cost: €0 (uses free tier Docker images)
+# =============================================================================
+
+---
+version: "3.8"
+
+# Custom bridge network with specified subnet and static IPs (mirrors Pi LAN)
+networks:
+  idps_net:
+    driver: bridge
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.10.10.0/24
+          gateway: 10.10.10.1
+
+# Named volumes mirroring production setup
+volumes:
+  suricata_logs:
+    driver: local
+  suricata_rules:
+    driver: local
+
+services:
+  # ========================================================================
+  # Component B: The Attacker (simulates external/threat actor)
+  # ========================================================================
+  attacker:
+    image: kalilinux/kali-rolling:latest
+    container_name: attacker
+    hostname: attacker
+    restart: unless-stopped
+
+    # Network configuration with static IP (mirrors Pi subnet)
+    networks:
+      idps_net:
+        ipv4_address: 10.10.10.2
+
+    # Full root access for penetration tools
+    user: root
+
+    # Pre-install attack tools for immediate use
+    command: >
+      /bin/bash -c "
+      export DEBIAN_FRONTEND=noninteractive &&
+      apt-get update &&
+      apt-get install -y nmap curl wget sqlmap hydra net-tools iputils-ping dnsutils && apt-get clean && rm -rf /var/lib/apt/lists/* &&
+      tail -f /dev/null
+      "
+
+    environment:
+      - TZ=UTC
+      - TERM=xterm
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "ping", "-c", "1", "10.10.10.1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+    # ISOLATION: No ports exposed to host. Only internal network access.
+    # This prevents accidental exposure of vulnerable target to public internet
+
+    # Mount attack scripts for easy execution from host
+    volumes:
+      - ./scripts:/attack-scripts:ro
+
+    # DNS resolver for internal network
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
+  # ========================================================================
+  # Component C: The Sensor (Suricata IDPS - mirrors Pi sensor)
+  # ========================================================================
+  suricata:
+    image: jasonish/suricata:7.0.5
+    container_name: suricata
+    hostname: suricata-sensor
+    restart: unless-stopped
+
+    # Network configuration with static IP
+    networks:
+      idps_net:
+        ipv4_address: 10.10.10.3
+
+    # Required Linux capabilities for packet capture (same as Pi)
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+      - SYS_ADMIN
+
+    # Privileged mode for af-packet kernel bypass
+    privileged: true
+
+    # Network mode - connected to our custom bridge
+    network_mode: bridge
+
+    environment:
+      - TZ=UTC
+      - TERM=xterm
+      # Configure for af-packet (mirrors Pi auto-fp mode)
+      - SURICATA_RUN_MODE=autofp
+      - SURICATA_IFACE=eth0
+
+    # Override entrypoint to use custom script for proper initialization
+    command: >
+      suricata
+      -c /etc/suricata/suricata.yaml
+      -i eth0
+      --af-packet
+      -vv
+      -l /var/log/suricata
+
+    # Volume mounts matching production Pi setup
+    volumes:
+      - suricata_logs:/var/log/suricata
+      - suricata_rules:/var/lib/suricata/rules
+      - ./suricata/suricata.yaml:/etc/suricata/suricata.yaml:ro
+      - ./data/logs/suricata:/var/log/suricata:delegated
+
+    # Resource limits matching Pi deployment
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "suricata", "-version"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
+  # ========================================================================
+  # Component A: The Victim (DVWA - Damn Vulnerable Web Application)
+  # ========================================================================
+  victim:
+    image: citizenstig/dvwa:latest
+    container_name: victim
+    hostname: victim-dvwa
+    restart: unless-stopped
+
+    # Network configuration with static IP
+    networks:
+      idps_net:
+        ipv4_address: 10.10.10.4
+
+    # Run as www-data for security (non-root)
+    user: www-data
+
+    # Environment configuration for DVWA
+    environment:
+      - TZ=UTC
+      - TERM=xterm
+      - DB_HOST=127.0.0.1
+      - DB_USER=root
+      - DB_PASSWORD=p@ssw0rd
+      - DB_NAME=dvwa
+
+    # NO port exposure to host - isolated network only
+    # This ensures the vulnerable app cannot be reached from public internet
+    # For local testing during development, uncomment:
+    # ports:
+    #   - "8080:80"
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+
+    # Health check - DVWA responds on port 80
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/setup.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
+
+# =============================================================================
+# NETWORK TOPOLOGY & TRAFFIC INTERCEPTION NOTES
+# =============================================================================
+#
+# The traffic flow in this simulation:
+#
+#   Attacker (10.10.10.2) ---> Suricata (10.10.10.3) ---> Victim (10.10.10.4)
+#                              (sensor monitors all)
+#
+# INTERCEPTION STRATEGY (for proper IDPS testing):
+#
+# Option 1: Inline Mode (preferred for production-like testing)
+#   - Configure Suricata with af-packet in inline mode
+#   - Requires creating a virtual interface pair (VETH)
+#   - Route attacker->victim traffic through Suricata container
+#
+# Option 2: NFQueue Mode
+#   - Use iptables NFQUEUE to redirect traffic to Suricata
+#   - Suricata can drop/allow packets
+#
+# Option 3: Passive Monitoring (simplest)
+#   - Suricata uses af-packet in passive mode (FPF)
+#   - Monitors traffic without interception
+#   - Suitable for development/testing
+#
+# For this dev-test environment, we use Option 3 (passive) for simplicity.
+# All containers are on the same Docker bridge, so Suricata can monitor
+# the traffic using its default af-packet configuration.
+#
+# SECURITY ISOLATION GUARANTEES:
+# ---------------------------
+# - No ports exposed to public internet
+# - All traffic confined to docker0/subnet
+# - Attacker->Victim accessible only within container network
+# - Suricata has privileged mode for packet capture
+#
+# COST OPTIMIZATION:
+# ------------------
+# - Free tier Docker images (Kali, DVWA, Suricata)
+# - No cloud resources or physical hardware required
+# - Single physical host (Docker Desktop on Mac/Windows/Linux)
+# - Total cost: €0

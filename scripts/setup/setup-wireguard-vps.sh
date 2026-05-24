@@ -21,10 +21,53 @@ PI_TUNNEL_IP="10.10.0.2/32"
 WG_PORT="51820"
 WG_DIR="/etc/wireguard"
 
+detect_os() {
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        OS_ID="${ID,,}"
+        OS_ID_LIKE="${ID_LIKE,,}"
+    else
+        error "Cannot detect OS: /etc/os-release not found"
+    fi
+}
+
 install_wireguard() {
     log "Installing WireGuard..."
-    apt-get update -qq
-    apt-get install -y wireguard wireguard-tools
+    detect_os
+
+    case "$OS_ID" in
+        ubuntu|debian|raspbian)
+            apt-get update -qq
+            apt-get install -y wireguard wireguard-tools
+            ;;
+        fedora)
+            dnf install -y wireguard-tools
+            ;;
+        centos|rhel|almalinux|rocky)
+            # WireGuard is in EPEL for RHEL-family
+            dnf install -y epel-release 2>/dev/null || yum install -y epel-release 2>/dev/null || true
+            dnf install -y wireguard-tools 2>/dev/null || yum install -y wireguard-tools
+            ;;
+        arch|manjaro)
+            pacman -Sy --noconfirm wireguard-tools
+            ;;
+        alpine)
+            apk add --no-cache wireguard-tools
+            ;;
+        *)
+            # Fall back to ID_LIKE if the specific distro isn't matched
+            if [[ "$OS_ID_LIKE" == *"debian"* ]]; then
+                apt-get update -qq
+                apt-get install -y wireguard wireguard-tools
+            elif [[ "$OS_ID_LIKE" == *"rhel"* || "$OS_ID_LIKE" == *"fedora"* ]]; then
+                dnf install -y wireguard-tools 2>/dev/null || yum install -y wireguard-tools
+            elif [[ "$OS_ID_LIKE" == *"arch"* ]]; then
+                pacman -Sy --noconfirm wireguard-tools
+            else
+                error "Unsupported OS: $OS_ID (ID_LIKE=$OS_ID_LIKE). Install wireguard-tools manually."
+            fi
+            ;;
+    esac
 }
 
 generate_keys() {

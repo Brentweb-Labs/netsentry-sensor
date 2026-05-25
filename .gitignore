@@ -104,3 +104,5 @@ mongo-data/
 v1-Eindwerk/
 
 # Internal docs (ignored working notes)
+# GitHub issues markup (create issues at github.com/yourorg/netsentry-sensor/issues)
+docs/issues/

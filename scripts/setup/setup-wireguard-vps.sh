@@ -1,6 +1,11 @@
 #!/bin/bash
-# WireGuard VPS server setup — runs on the Hetzner VPS
+# WireGuard VPS Server Setup for Linux
 # Tunnel: VPS 10.10.0.1 <-> Pi 10.10.0.2
+#
+# Usage:
+#   1. First run:  sudo ./setup-wireguard-vps.sh
+#      (outputs VPS public key to share with Pi)
+#   2. Second run: sudo ./setup-wireguard-vps.sh <pi-public-key>
 
 set -e
 
@@ -12,6 +17,26 @@ NC='\033[0m'
 log()  { echo -e "${GREEN}[INFO]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error(){ echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
+
+USAGE="
+===========================================
+WireGuard VPS Server Setup (Linux)
+===========================================
+
+First run:
+  sudo ./setup-wireguard-vps.sh
+
+This outputs your VPS public key. Share it with the Pi admin.
+
+Second run:
+  sudo ./setup-wireguard-vps.sh <pi-public-key>
+"
+show_help() { echo "$USAGE"; }
+
+# Parse args
+case "${1:-}" in
+    -h|--help) show_help; exit 0 ;;
+esac
 
 [[ $EUID -ne 0 ]] && error "Run as root"
 

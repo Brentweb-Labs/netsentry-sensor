@@ -5,7 +5,7 @@ use axum::{
     routing::{delete, get, post},
     Router,
 };
-use log::{debug, error, info, warn};
+use log::{info, warn};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::net::Ipv4Addr;
@@ -170,18 +170,6 @@ async fn forward_unblock_to_firewall(
     }
 }
 
-/// Check if an IP is blocked (local cache)
-async fn is_ip_blocked(state: &AppState, ip: &str) -> bool {
-    let blocked = state.blocked_ips.read().await;
-    if let Some(info) = blocked.get(ip) {
-        // Check if not expired
-        if let Ok(expires_at) = chrono::DateTime::parse_from_rfc3339(&info.expires_at) {
-            return expires_at > chrono::Utc::now();
-        }
-    }
-    false
-}
-
 async fn health_check() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "healthy",
@@ -203,8 +191,7 @@ async fn block_ip(
     );
 
     // Forward to firewall (best effort - we still cache locally)
-    let mut firewall_enforced = false;
-    if let Err(e) = forward_block_to_firewall(
+    let firewall_enforced = if let Err(e) = forward_block_to_firewall(
         &state.client,
         &state.firewall_url,
         &state.firewall_api_key,
@@ -212,15 +199,14 @@ async fn block_ip(
         &request.reason,
         request.duration_hours,
     )
-    .await
-    {
+    .await {
         warn!("Firewall API forward failed (blocking locally): {}", e);
         // Note: In SPAN topology, we can't actually block without firewall API
         // The system becomes monitoring-only without router integration
-        firewall_enforced = false;
+        false
     } else {
-        firewall_enforced = true;
-    }
+        true
+    };
 
     // Cache locally for fast lookups
     let blocked_at = chrono::Utc::now();

@@ -19,19 +19,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libssl-dev pkg-config
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Add target
         run: rustup target add ${{ matrix.target }}
 
-      - name: Install cross tool
-        run: cargo install cross
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libssl-dev pkg-config
 
       - name: Cache cargo registry
         uses: actions/cache@v4
@@ -51,13 +48,19 @@ jobs:
           path: target
           key: ${{ runner.os }}-target-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Build release binaries
+      - name: Install ARM64 cross-compilation toolchain
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
-          if [ "${{ matrix.target }}" == "aarch64-unknown-linux-gnu" ]; then
-            cross build --release --target ${{ matrix.target }}
-          else
-            cargo build --release --target ${{ matrix.target }}
-          fi
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+      - name: Build release binaries
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+          PKG_CONFIG_ALLOW_CROSS: 1
+          OPENSSL_STATIC: 1
+        run: |
+          cargo build --release --target ${{ matrix.target }}
 
       - name: Create binary archive
         run: |

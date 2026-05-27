@@ -1,7 +1,0 @@
-[build]
-# Use pre-built cross Docker images
-pre-build = ["apt-get update && apt-get install -y pkg-config libssl-dev"]
-
-[target.aarch64-unknown-linux-gnu]
-# Pre-build step to install dependencies in the Docker container
-pre-build = ["apt-get update && apt-get install -y pkg-config libssl-dev"]

@@ -61,6 +61,7 @@ jobs:
           OPENSSL_DIR: /tmp/openssl-static
           LIBPCAP_DIR: /tmp/libpcap-static
           PKG_CONFIG_PATH: /tmp/libpcap-static/lib/pkgconfig:/tmp/openssl-static/lib/pkgconfig
+          PKG_CONFIG_ALLOW_CROSS: 1
         run: |
           mkdir -p /tmp/openssl-static /tmp/libpcap-static
           # Download and build OpenSSL statically for ARM64

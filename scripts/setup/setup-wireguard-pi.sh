@@ -1,6 +1,11 @@
 #!/bin/bash
-# WireGuard Pi client setup — runs on the Raspberry Pi
+# WireGuard Pi Client Setup for Linux/Raspberry Pi
 # Tunnel: Pi 10.10.0.2 <-> VPS 10.10.0.1
+#
+# Usage:
+#   1. First run:  sudo ./setup-wireguard-pi.sh
+#      (outputs Pi public key to share with VPS)
+#   2. Second run: sudo ./setup-wireguard-pi.sh <vps-public-key>
 
 set -e
 
@@ -12,6 +17,26 @@ NC='\033[0m'
 log()  { echo -e "${GREEN}[INFO]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error(){ echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
+
+USAGE="
+===========================================
+WireGuard Pi Client Setup (Linux/Raspberry Pi)
+===========================================
+
+First run:
+  sudo ./setup-wireguard-pi.sh
+
+This outputs your Pi public key. Share it with the VPS admin.
+
+Second run:
+  sudo ./setup-wireguard-pi.sh <vps-public-key>
+"
+show_help() { echo "$USAGE"; }
+
+# Parse args
+case "${1:-}" in
+    -h|--help) show_help; exit 0 ;;
+esac
 
 [[ $EUID -ne 0 ]] && error "Run as root"
 

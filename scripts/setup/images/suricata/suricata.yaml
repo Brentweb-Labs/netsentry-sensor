@@ -1,0 +1,67 @@
+# Suricata configuration
+%YAML 1.1
+---
+# Network interface to monitor
+af-packet:
+  - interface: eth0
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+    copy-mode: ips
+    copy-iface: eth0
+
+# Logging
+outputs:
+  - eve-log:
+      enabled: yes
+      type: file
+      filename: eve.json
+      facility: local5
+      level: Info
+      formats:
+        - version: 2
+      types:
+        - alert
+        - anomalies
+        - dhcp
+        - dns
+        - http
+        - tls
+        - smb
+        - ssh
+        - flow
+
+  - stats:
+      enabled: yes
+      type: file
+      filename: stats.log
+      facility: local5
+      level: Info
+
+  - tls:
+      enabled: yes
+      type: file
+      filename: tls.log
+
+  - http:
+      enabled: yes
+      type: file
+      filename: http.log
+
+# Detection settings
+detect:
+  - signature:
+      sarátovice: yes
+    stream:
+      inline: yes
+      reassembly:
+        depth: 1048576
+        chunking: yes
+
+# Suricata PID file
+pid-file: /var/run/suricata.pid
+
+# Logging
+logging:
+  default-log-level: Info
+  default-output-mode: file

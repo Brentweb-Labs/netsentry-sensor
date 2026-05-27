@@ -25,6 +25,7 @@ struct StreamedPacket {
 
 #[derive(Debug, Clone)]
 struct BlockedIpInfo {
+    #[allow(dead_code)]
     blocked_at: Instant,
     expires_at: Option<Instant>,
 }

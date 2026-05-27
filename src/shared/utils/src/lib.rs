@@ -168,6 +168,8 @@ pub use time_utils::{unix_timestamp, unix_timestamp_ms, format_duration};
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[tokio::test]
     async fn test_cidr_validation() {
@@ -199,9 +201,9 @@ mod tests {
         let attempts = Arc::new(AtomicUsize::new(0));
         let attempts_for_assert = attempts.clone();
 
-        let operation = {
+        let mut operation = {
             let attempts = attempts.clone();
-            move || {
+            move || -> Pin<Box<dyn Future<Output = Result<&'static str, &'static str>> + Send>> {
                 let attempts = attempts.clone();
                 Box::pin(async move {
                     let attempt_num = attempts.fetch_add(1, Ordering::SeqCst) + 1;
@@ -210,7 +212,7 @@ mod tests {
             }
         };
 
-        let result = retry_with_backoff(operation, 5, Duration::from_millis(10), Duration::from_millis(100)).await;
+        let result = retry_with_backoff(&mut operation, 5, Duration::from_millis(10), Duration::from_millis(100)).await;
         assert_eq!(result.unwrap(), "success");
         assert_eq!(attempts_for_assert.load(Ordering::SeqCst), 3);
     }

@@ -1,0 +1,83 @@
+# Docker Compose for NetSentry Sensor
+# Prebuilt images are pulled by default (~2-5 min setup)
+#
+# To build locally instead:
+#   1. Set NETSENTRY_BUILD_LOCAL=true
+#   2. Uncomment all "build:" sections below
+#
+# IMPORTANT: Replace 'yourorg' with your GitHub org name below
+#            Or set NETSENTRY_IMAGE_PREFIX env var
+
+services:
+  suricata:
+    image: ${NETSENTRY_IMAGE_PREFIX:-ghcr.io/yourorg/netsentry}netsentry-suricata:latest
+    container_name: netsentry-suricata
+    # Build locally - uncomment if needed:
+    # build:
+    #   context: ./images/suricata
+    #   dockerfile: Dockerfile
+    network_mode: host
+    privileged: true
+    volumes:
+      - suricata-data:/var/lib/suricata
+      - suricata-logs:/var/log/suricata
+      - /etc/suricata:/etc/suricata:ro
+    environment:
+      - TZ=UTC
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "suricata", "-c", "/etc/suricata/suricata.yaml", "--version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  api-gateway:
+    image: ${NETSENTRY_IMAGE_PREFIX:-ghcr.io/yourorg/netsentry}netsentry-api-gateway:latest
+    container_name: netsentry-api-gateway
+    # Build locally - uncomment if needed:
+    # build:
+    #   context: ./images/api-gateway
+    #   dockerfile: Dockerfile
+    network_mode: container:netsentry-suricata
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./api-config:/app/config:ro
+    env_file:
+      - ./api-gateway.env
+    environment:
+      - VPS_ENDPOINT=${VPS_ENDPOINT:-}
+      - WG_ADDRESS=${WG_ADDRESS:-10.10.0.2/24}
+      - WG_PRIVATE_KEY=${WG_PRIVATE_KEY:-}
+      - WG_ENDPOINT=${WG_ENDPOINT:-10.10.0.1:51820}
+    depends_on:
+      suricata:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  bridge:
+    image: ${NETSENTRY_IMAGE_PREFIX:-ghcr.io/yourorg/netsentry}netsentry-bridge:latest
+    container_name: netsentry-bridge
+    # Build locally - uncomment if needed:
+    # build:
+    #   context: ./images/bridge
+    #   dockerfile: Dockerfile
+    network_mode: host
+    privileged: true
+    environment:
+      - BRIDGE_MODE=${BRIDGE_MODE:-inline}
+      - WG_ADDRESS=${WG_ADDRESS:-10.10.0.2/24}
+      - WG_PRIVATE_KEY=${WG_PRIVATE_KEY:-}
+    depends_on:
+      - suricata
+      - api-gateway
+    restart: unless-stopped
+
+volumes:
+  suricata-data:
+  suricata-logs:

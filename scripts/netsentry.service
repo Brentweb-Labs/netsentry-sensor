@@ -1,0 +1,17 @@
+[Unit]
+Description=NetSentry IDPS Sensor
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/netsentry
+ExecStart=/usr/bin/docker compose -f docker-compose.raspi.yml up -d
+ExecStop=/usr/bin/docker compose -f docker-compose.raspi.yml down
+RemainAfterExit=yes
+Restart=on-failure
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target

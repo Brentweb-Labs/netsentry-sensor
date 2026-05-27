@@ -68,7 +68,7 @@ jobs:
           CC=aarch64-linux-gnu-gcc ./Configure --prefix=/tmp/openssl-static linux-aarch64 no-shared
           make
           make install_sw
-          cd -
+          cd "$GITHUB_WORKSPACE"
           cargo build --release --target ${{ matrix.target }}
 
       - name: Build x86_64 release binaries

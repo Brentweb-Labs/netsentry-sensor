@@ -2596,6 +2596,7 @@ dependencies = [
  "chrono",
  "env_logger",
  "futures-util",
+ "hostname",
  "log",
  "reqwest",
  "serde",

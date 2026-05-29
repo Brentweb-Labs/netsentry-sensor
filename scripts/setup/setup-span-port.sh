@@ -1,25 +1,25 @@
 #!/bin/bash
 #
-# setup-span-port.sh - Configure TP-Link TL-SG108E for Port Mirroring (SPAN)
+# setup-span-port.sh - Configure Managed Switch for Port Mirroring (SPAN)
 #
-# This script helps configure the TL-SG108E smart switch to mirror traffic
+# This script helps configure a managed network switch to mirror traffic
 # to the Raspberry Pi IDPS sensor for out-of-band monitoring.
 #
 # Usage: ./setup-span-port.sh [configure|status|help]
 #
 # Prerequisites:
-#   - TP-Link TL-SG108E v1 or v2
-#   - Switch must be accessible on network (default: 192.168.0.1)
-#   - Admin credentials to access switch web UI
+#   - Managed network switch with port mirroring/SPAN support
+#   - Switch must be accessible on network (IP varies by device)
+#   - Admin credentials to access switch web UI or CLI
 #
 # Topology:
-#   [Proximus Modem] ──► [TP-Link Router/Archer] ──► [TL-SG108E]
-#                                                          │
-#              ┌───────────────────────────────────────────┼─────────────────┐
-#              │                Port 1: Router             │                 │
-#              │                Port 2: Deco Wi-Fi         │                 │
-#              │                Port 8: SPAN → IDPS        │◄── Mirrored traffic
-#              └───────────────────────────────────────────┴─────────────────┘
+#   [Modem] ──► [Router] ──► [Managed Switch (Port Mirroring)]
+#                                      │
+#              ┌───────────────────────┼─────────────────┐
+#              │         Source Ports  │                 │
+#              │   (Router, Wi-Fi, etc)│                 │
+#              │    Mirror Destination │◄── Mirrored traffic
+#              └───────────────────────┴─────────────────┘
 #
 
 set -euo pipefail
@@ -46,27 +46,28 @@ log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
 # Show help
 show_help() {
     cat << EOF
-TP-Link TL-SG108E Port Mirroring Setup for IDPS
+Managed Switch Port Mirroring (SPAN) Setup for IDPS
 
 USAGE:
     $0 [configure|status|help]
 
 DESCRIPTION:
-    Configures the TL-SG108E smart switch to mirror all traffic
-    to a specific port for out-of-band network monitoring by the IDPS.
+    Helps configure a managed network switch to mirror traffic
+    to the Raspberry Pi for out-of-band network monitoring.
 
-    IMPORTANT: This script provides instructions. The actual port mirroring
-    configuration must be done via the switch's web GUI at:
+    IMPORTANT: This script provides instructions and verification.
+    The actual port mirroring configuration must be done via your
+    switch's web UI or CLI (location varies by manufacturer).
 
-        http://${SWITCH_IP}
+CONFIGURATION STEPS (varies by switch):
 
-CONFIGURATION STEPS (via Web GUI):
-
-    1. Navigate to Features > Port Mirroring
-    2. Enable Port Mirroring
-    3. Set Monitored Ports: Select ports 1, 2 (include your uplink & Deco)
-    4. Set Monitoring Port: Port 8 (where Pi is connected)
-    5. Click Save
+    1. Access your switch web UI or CLI
+    2. Navigate to port mirroring/SPAN configuration
+       (Location depends on manufacturer)
+    3. Enable Port Mirroring/SPAN
+    4. Set Source Ports: Select ports to monitor
+    5. Set Mirror Destination: Port where Pi is connected
+    6. Save/Apply configuration
 
 ENVIRONMENT VARIABLES:
     SWITCH_IP      IP address of switch (default: 192.168.0.1)
@@ -92,7 +93,7 @@ check_switch_connectivity() {
     else
         log_warn "Switch is not reachable at ${SWITCH_IP}"
         log_info "The switch IP may be different. Check your network."
-        log_info "Common TL-SG108E IPs: 192.168.0.1, 192.168.1.1, 192.168.100.1"
+        log_info "Common switch IPs: 192.168.0.1, 192.168.1.1, 192.168.100.1, 10.0.0.1"
         return 1
     fi
 }
@@ -134,15 +135,14 @@ show_topology() {
 ${GREEN}CURRENT NETWORK TOPOLOGY:${NC}
 
     ┌─────────────────────────────────────────────────────────┐
-    │              TP-Link TL-SG108E Smart Switch             │
-    │                    (Port Mirroring Enabled)             │
+    │           Managed Switch (Port Mirroring Enabled)       │
     └─────────────────────┬───────────────────────────────────┘
                           │
     ┌─────────────────────┼────────────────────┬──────────────┐
     │                     │                    │              │
     ▼                     ▼                    ▼              │
- Port 1 ────────────► Port 2 ────────────► ... ────► Port 8  │
- (Router/Archer)     (Deco Wi-Fi)              │  (SPAN→IDPS)
+Source  ────────────► Source ────────────► ... ────► Mirror   │
+Ports 1,2, etc        (Router, Wi-Fi)          │   Destination
                                                │
                                                ▼
                                     ┌───────────────────┐
@@ -198,56 +198,55 @@ configure() {
     cat << EOF
 
 ${GREEN}╔══════════════════════════════════════════════════════════════════════╗${NC}
-${GREEN}║     TP-Link TL-SG108E Port Mirroring Configuration for IDPS          ║${NC}
+${GREEN}║          Managed Switch Port Mirroring Configuration for IDPS         ║${NC}
 ${GREEN}╚══════════════════════════════════════════════════════════════════════╝${NC}
 
-This script helps you configure port mirroring on the TL-SG108E switch.
+This script helps you configure port mirroring on your managed network switch.
 
-Switch Default Credentials:
+Switch Access:
   - IP:     ${SWITCH_IP}
   - User:   ${SWITCH_USER}
   - Pass:   ${SWITCH_PASS}
 
-${YELLOW}STEP 1: Access Switch Web UI${NC}
+${YELLOW}STEP 1: Access Switch Web UI or CLI${NC}
 Open your browser and navigate to:
     http://${SWITCH_IP}
+Or use CLI/SSH to access your switch.
 Log in with the admin credentials.
 
-${YELLOW}STEP 2: Navigate to Port Mirroring${NC}
-Go to: Features → Port Mirroring
+${YELLOW}STEP 2: Navigate to Port Mirroring Configuration${NC}
+The location depends on your switch manufacturer:
+  - TP-Link: Features → Port Mirroring
+  - Netgear: Administration → Port Mirroring
+  - D-Link: Advanced → Port Mirroring
+  - Ubiquiti: Settings → Port Mirroring
+  - Cisco/Arista: Monitor Sessions (CLI)
 
 ${YELLOW}STEP 3: Configure Mirroring${NC}
-Set the following:
+Set the following (layout varies by switch):
     ┌─────────────────────────────────────────────┐
-    │ Port Mirroring:        ○ Disable  ● Enable  │
+    │ Port Mirroring/SPAN:  ○ Disable  ● Enable  │
     │                                               │
-    │ Monitored Ports (ingress):                   │
-    │   ☑ Port 1  (Router/Archer - Uplink)         │
-    │   ☑ Port 2  (Deco Wi-Fi)                     │
-    │   ☐ Port 3  (optional)                       │
-    │   ☐ Port 4  (optional)                       │
-    │   ☐ Port 5  (optional)                       │
-    │   ☐ Port 6  (optional)                       │
-    │   ☐ Port 7  (optional)                       │
+    │ Source Ports (traffic to monitor):          │
+    │   ☑ Port 1  (Router/Uplink)                  │
+    │   ☑ Port 2  (Wi-Fi AP)                       │
+    │   ☐ Port 3-N (other ports to monitor)        │
     │                                               │
-    │ Monitoring Port (egress):                    │
-    │   ● Port 8  (Raspberry Pi)                   │
+    │ Destination Port (where Pi is connected):   │
+    │   ● Port X  (Raspberry Pi)                   │
     │                                               │
-    │ Click: Save                                   │
+    │ Click: Save/Apply                            │
     └─────────────────────────────────────────────┘
 
 ${YELLOW}STEP 4: Verify on Pi${NC}
 After saving, run:
     $0 verify
 
-${BLUE}Alternative: SNMP Configuration (Advanced)${NC}
-For automated setup, you can use SNMP (if supported):
-    # Example SNMP set (verify OID for your switch model)
-    snmpset -v 2c -c private ${SWITCH_IP} \\
-        .1.3.6.1.4.1.11863.1.1.3.1.4.0 i 1 \\
-        .1.3.6.1.4.1.11863.1.1.3.1.5.0 i 1 \\
-        .1.3.6.1.4.1.11863.1.1.3.1.6.0 s "1,2" \\
-        .1.3.6.1.4.1.11863.1.1.3.1.7.0 s "8"
+${BLUE}Advanced: CLI Configuration${NC}
+If your switch supports CLI, refer to vendor documentation:
+  - TP-Link: monitor port [src_port] to [dst_port]
+  - Netgear: monitor session [num] source [ports] dest [port]
+  - D-Link: See switch documentation
 
 EOF
 }

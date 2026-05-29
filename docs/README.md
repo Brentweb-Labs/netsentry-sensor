@@ -1,40 +1,47 @@
-# IDPS — Research Context
+# NetSentry Sensor — Documentation
 
-This project is a graduation thesis for Provil-ION, a Flemish secondary school.
+## Quick Navigation
 
-> *Which common cyberattacks (DDoS, brute-force, internal network infiltration) pose the greatest threat to the Provil-ION school network, and how can software-based detection contribute to better security?*
-
----
-
-## Design criteria
-
-A school environment differs from a corporate network: limited ICT staff, constrained budgets, high wireless device density, and unpredictable user behaviour. The IDPS must meet all of the following:
-
-| Criterion | Requirement |
+| Doc | Contents |
 |---|---|
-| **Affordability** | Runs on existing hardware; no heavy licences |
-| **Easy management** | Clear alerts, minimal daily tuning |
-| **Exportable logging** | Readable logs for incident follow-up (GRIP basis 5 T11) |
-| **Low false-positive rate** | Normal school traffic must not trigger alarms |
-| **Wireless-aware** | Handles many simultaneous connections with dynamic IPs (GRIP basis 2 T3) |
-| **Automatic prevention** | Blocks clear threats without requiring an admin online 24/7 |
+| [SETUP.md](SETUP.md) | Step-by-step deployment guide |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | System architecture, topologies, event flows |
+| [SPAN_TOPOLOGY.md](SPAN_TOPOLOGY.md) | Default: passive out-of-band monitoring via switch port mirroring |
+| [PI_BRIDGE_SETUP.md](PI_BRIDGE_SETUP.md) | Alternative: inline bridge between modem and router |
+| [WIREGUARD_SETUP.md](WIREGUARD_SETUP.md) | WireGuard key exchange and tunnel configuration |
+| [OPERATIONS.md](OPERATIONS.md) | Env vars, API endpoints, day-2 commands, troubleshooting |
+| [DEVELOPMENT.md](DEVELOPMENT.md) | Build, test, and contribute |
+| [CLOUD_SETUP.md](CLOUD_SETUP.md) | Self-hosting the cloud backend (server requirements, WireGuard, Traefik) |
 
 ---
 
-## Approach
+## Platform Overview
 
-A full penetration test carries too much risk on an active school network. The chosen approach combines:
+NetSentry is an open-core network security platform built around three components:
 
-- **IDPS** (Suricata + custom services) — continuous real-time monitoring and automatic blocking
-- **Vulnerability assessment** (Nuclei / OpenVAS) — periodic automated scans for misconfigurations and outdated software
+1. **Sensor** (this repo — open source): Rust edge agent that monitors network traffic, runs Suricata IDS, and communicates with the cloud over WireGuard.
 
-Results from scans feed back into detection rules over time.
+2. **Cloud backend** (private repo): Rust + NestJS services that receive traffic events, analyse threats, generate detection rules, and push block commands back to sensors.
+
+3. **SaaS console** (part of cloud): Angular multi-tenant management UI for provisioning sensors, configuring alerts, managing users, and viewing reports.
+
+The sensor is the only public component. Businesses can deploy it on their own infrastructure and connect it to either:
+- The hosted **NetSentry SaaS** (coming soon)
+- Their own **self-hosted cloud** instance (see [CLOUD_SETUP.md](CLOUD_SETUP.md))
 
 ---
 
-## Alignment with GRIP framework
+## Supported Topologies
 
-The design aligns with the *Groeipad Informatieveiligheid en Privacy* (GRIP) from Kenniscentrum Digisprong:
-- Logging and incident follow-up (basis 5 T11)
-- Secured wireless network access (basis 2 T3)
-- Formal roles for data protection and information security (basis 1 O2)
+| Mode | Description | Hardware needed |
+|---|---|---|
+| **SPAN / Out-of-band** (default) | Passive — mirror port on managed switch. Zero network disruption on sensor failure. | 1 NIC, managed switch |
+| **Inline Bridge** | Active — sensor sits between modem and router. Strongest enforcement. | 2 NICs |
+
+---
+
+## Quick Links
+
+- [Open an issue](https://github.com/yourorg/netsentry-sensor/issues)
+- [CONTRIBUTING.md](../CONTRIBUTING.md) — how to contribute
+- [CLOUD_SETUP.md](CLOUD_SETUP.md) — self-hosting / SaaS guide

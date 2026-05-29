@@ -1,10 +1,9 @@
 services:
-  # WireGuard VPN Tunnel — Pi client connecting to VPS (10.10.0.1)
+  # WireGuard VPN Tunnel — sensor client connecting to cloud (10.10.0.1)
   wireguard:
     build:
       context: .
       dockerfile: raspi/wireguard/Dockerfile
-    platform: linux/arm64
     container_name: idps-wireguard
     restart: unless-stopped
     network_mode: host
@@ -14,7 +13,7 @@ services:
     environment:
       - WG_PRIVATE_KEY=${WG_PRIVATE_KEY}
       - WG_VPS_PUBLIC_KEY=${WG_VPS_PUBLIC_KEY}
-      - VPS_PUBLIC_IP=${VPS_PUBLIC_IP:-178.104.6.176}
+      - VPS_PUBLIC_IP=${VPS_PUBLIC_IP}
       - WG_ADDRESS=${WG_ADDRESS:-10.10.0.2/24}
       - WG_PORT=${WG_PORT:-51820}
       - WG_ALLOWED_IPS=${WG_ALLOWED_IPS:-10.10.0.1/32}
@@ -32,10 +31,11 @@ services:
         limits:
           memory: 32M
 
-  # Core Infrastructure - Raspberry Pi 4 Optimized (ARM64)
+  # Core Infrastructure
+  # NOTE: mongo:4.4.18 is required for ARM64 devices (e.g. RPi 4, Cortex-A72) which lack AVX.
+  #       x86_64 hosts can use mongo:7.0 or later. Override via MONGO_IMAGE env var.
   mongodb:
-    image: mongo:4.4.18
-    platform: linux/arm64
+    image: ${MONGO_IMAGE:-mongo:4.4.18}
     container_name: idps-mongodb-pi
     restart: unless-stopped
     network_mode: host
@@ -61,7 +61,6 @@ services:
 
   redis:
     image: redis:7.4-alpine
-    platform: linux/arm64
     container_name: idps-redis-pi
     restart: unless-stopped
     network_mode: host
@@ -78,12 +77,11 @@ services:
       timeout: 10s
       retries: 3
 
-  # Network Filter - Raspberry Pi Specific (sits between modem/router)
+  # Network Filter - applies iptables DROP rules from cloud commands
   network-filter:
     build:
       context: .
       dockerfile: src/services/edge/network-filter/Dockerfile
-    platform: linux/arm64
     container_name: idps-network-filter-pi
     restart: unless-stopped
     network_mode: host
@@ -104,10 +102,9 @@ services:
         limits:
           memory: 128M
 
-  # Suricata - Main IDPS Service (Raspberry Pi Optimized)
+  # Suricata - Main IDPS engine (monitors capture interface, writes eve.json)
   suricata:
     image: jasonish/suricata:7.0
-    platform: linux/arm64
     container_name: idps-suricata-pi
     restart: unless-stopped
     network_mode: host
@@ -117,7 +114,9 @@ services:
       - SYS_ADMIN
     environment:
       - SURICATA_RUN_MODE=autofp
-      - SURICATA_IFACE=${SURICATA_IFACE:-br0}
+      # SPAN topology (default): monitor the mirror port interface (eth0).
+      # Inline bridge topology: set SURICATA_IFACE=br0 in .env.
+      - SURICATA_IFACE=${SURICATA_IFACE:-eth0}
       - SURICATA_CONFIG_DIR=/etc/suricata
       - SURICATA_LOG_DIR=/var/log/suricata
       - SURICATA_RULES_DIR=/var/lib/suricata/rules
@@ -140,12 +139,11 @@ services:
         reservations:
           memory: 512M
 
-  # Raspberry Pi Collector - Edge Data Processing
+  # Sensor Collector - tails eve.json, forwards to cloud, receives block/rule commands
   raspi-collector:
     build:
       context: .
       dockerfile: src/services/edge/raspi-collector/Dockerfile
-    platform: linux/arm64
     container_name: idps-raspi-collector-pi
     restart: unless-stopped
     network_mode: host
@@ -180,12 +178,11 @@ services:
         reservations:
           memory: 128M
 
-  # Packet Processor - Raw pcap capture + fail-open WebSocket streaming to VPS
+  # Packet Processor - Raw pcap capture + fail-open WebSocket streaming to cloud
   packet-processor:
     build:
       context: .
       dockerfile: src/services/edge/packet-processor/Dockerfile
-    platform: linux/arm64
     container_name: idps-packet-processor-pi
     restart: unless-stopped
     network_mode: host
@@ -193,7 +190,7 @@ services:
       - NET_RAW
       - NET_ADMIN
     environment:
-      - CAPTURE_INTERFACE=${PCAP_INTERFACE:-eth0}
+      - CAPTURE_INTERFACE=${CAPTURE_INTERFACE:-eth0}
       - VPS_ENDPOINT=${VPS_ENDPOINT}
       - PACKET_STREAM_WS_URL=${PACKET_STREAM_WS_URL}
       - API_KEY=${API_KEY}
@@ -211,12 +208,11 @@ services:
         reservations:
           memory: 128M
 
-  # Rule Engine - Receives Suricata rules from VPS, writes to rules file, reloads Suricata
+  # Rule Engine - Receives Suricata rules from cloud, writes to rules file, reloads Suricata
   rule-engine:
     build:
       context: .
       dockerfile: src/services/edge/rule-engine/Dockerfile
-    platform: linux/arm64
     container_name: idps-rule-engine-pi
     restart: unless-stopped
     network_mode: host
@@ -240,17 +236,16 @@ services:
         reservations:
           memory: 32M
 
-  # Telemetry Service - Edge Hardware Metrics
+  # Telemetry Service - Edge Hardware Metrics (CPU, memory, disk, temperature)
   idps-telemetry:
     build:
       context: .
       dockerfile: src/services/edge/telemetry/Dockerfile
-    platform: linux/arm64
     container_name: idps-telemetry-pi
     restart: unless-stopped
     network_mode: host
     environment:
-      - DEVICE_ID=${DEVICE_ID:-raspi-edge-01}
+      - DEVICE_ID=${DEVICE_ID:-sensor-node-01}
       - VPS_URL=${VPS_API_URL}
       - JWT_SECRET=${JWT_SECRET:-}
       - COLLECTION_INTERVAL_SECS=${COLLECTION_INTERVAL_SECS:-10}
@@ -273,10 +268,9 @@ services:
       timeout: 10s
       retries: 3
 
-  # System Monitoring - Node Exporter
+  # System Monitoring - Prometheus Node Exporter
   node-exporter:
     image: prom/node-exporter:v1.9.0
-    platform: linux/arm64
     container_name: idps-node-exporter-pi
     restart: unless-stopped
     network_mode: host
@@ -298,12 +292,11 @@ services:
         limits:
           memory: 64M
 
-  # Simple Web Interface - Raspberry Pi Optimized
+  # Local Web Dashboard (served via Nginx on port 80)
   pi-dashboard:
     build:
       context: .
       dockerfile: raspi/nginx/Dockerfile
-    platform: linux/arm64
     container_name: idps-pi-dashboard
     restart: unless-stopped
     network_mode: host

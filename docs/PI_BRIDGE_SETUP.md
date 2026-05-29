@@ -26,7 +26,7 @@ sudo apt install -y bridge-utils net-tools
 ## 2. Configure network bridge
 
 ```bash
-sudo ./scripts/setup/setup-bridge-unified.sh
+sudo ./setup.sh bridge
 ```
 
 To persist across reboots, copy one of the example configs:
@@ -96,7 +96,7 @@ docker exec idps-wireguard ping -c 3 10.10.0.1
 
 **No internet after bridge setup**
 ```bash
-sudo ./scripts/setup/setup-bridge-unified.sh
+sudo ./setup.sh bridge
 ```
 
 **Bridge not working**

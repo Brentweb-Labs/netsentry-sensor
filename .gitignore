@@ -105,3 +105,9 @@ v1-Eindwerk/
 # Internal docs (ignored working notes)
 # GitHub issues markup (create issues at github.com/yourorg/netsentry-sensor/issues)
 docs/issues/
+
+# Stale root-owned directories — remove manually:
+#   sudo rm -rf scripts/setup/images scripts/setup/.github scripts/setup/.claude
+scripts/setup/images/
+scripts/setup/.github/
+scripts/setup/.claude/

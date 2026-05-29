@@ -1,38 +1,38 @@
-# IDPS — Development Guide
+# NetSentry Sensor — Development Guide
 
 ## Building
 
-### Rust (sensor services)
-
-The sensor (`netsentry-sensor`) is a separate Rust workspace from the cloud. Build from within this repo:
+### Rust workspace
 
 ```bash
-cargo check --workspace                    # fast type-check, no binaries
-cargo build --workspace                    # build all edge services
-cargo build -p idps-raspi-collector        # single service
+cargo check --workspace                    # fast type-check
+cargo build --workspace                    # debug build
+cargo build -p idps-raspi-collector        # single crate
 cargo build -p idps-network-filter
 cargo build -p idps-rule-engine
 cargo build --workspace --release          # optimised — used by Dockerfiles
 ```
 
-Cross-compiling for ARM64 on x86 host:
+**Cross-compiling for arm64 on an x86_64 host:**
+
 ```bash
 rustup target add aarch64-unknown-linux-gnu
+# Install the linker: apt install gcc-aarch64-linux-gnu
 cargo build --workspace --release --target aarch64-unknown-linux-gnu
 ```
 
-> Cloud services (`api-gateway`, `threat-intel`, etc.) live in the `netsentry-cloud` repo and have their own workspace.
+> Cloud services (`api-gateway`, `threat-intel`, etc.) live in `netsentry-cloud` and have their own workspace.
 
-### Angular edge dashboard
+### Local edge Angular dashboard
 
 ```bash
 cd src/tools/dashboard
-npm install          # first time only
-npm run start        # dev server at http://localhost:4200
-npm run build        # production build → dist/ng-tailadmin/browser/
+npm install
+npm run start     # dev server — http://localhost:4200
+npm run build     # production build → dist/ng-tailadmin/browser/
 ```
 
-> Production build **must** use `npm run build` (not `ng serve`) — it activates `fileReplacements` in `angular.json` that swaps `environment.ts` for `environment.prod.ts`. Without this, `localhost` URLs ship to production.
+> Always use `npm run build` for production — it activates `fileReplacements` in `angular.json` that substitutes `environment.ts` with `environment.prod.ts`. Without this, localhost API URLs ship to production.
 
 ---
 
@@ -41,36 +41,38 @@ npm run build        # production build → dist/ng-tailadmin/browser/
 ```bash
 cargo test --workspace
 cargo test -p idps-raspi-collector
-cargo test -- --nocapture
+cargo test -- --nocapture          # show println! output
 ```
 
 ---
 
-## Local dev workflow
+## Local Dev Workflow
 
 ```bash
 export RUST_LOG=debug
 
-# Local MongoDB for raspi-collector (Pi stack uses mongo 4.4.18 in prod)
+# Start a local MongoDB (the edge stack uses mongo:4.4.18 for ARM64 compatibility)
 docker run -d -p 27017:27017 --name mongodb mongo:7.0
 
-# Run collector against a local VPS (point to your cloud instance or localhost)
+# Run collector against your cloud instance (or a local mock)
 export VPS_API_URL=http://localhost:8080
 cargo run -p idps-raspi-collector
 
-# Dashboard (separate terminal)
+# Local dashboard in a separate terminal
 cd src/tools/dashboard && npm run start
 ```
 
-Or bring up the full Pi stack:
+Or bring up the full edge stack:
+
 ```bash
+cp .env.example .env  # fill in required vars
 docker compose -f docker-compose.raspi.yml up -d
 docker compose -f docker-compose.raspi.yml logs -f raspi-collector
 ```
 
 ---
 
-## Code quality
+## Code Quality
 
 ```bash
 cargo fmt --all
@@ -80,14 +82,14 @@ cargo audit
 
 ---
 
-## Adding a new service
+## Adding a New Service
 
 1. Create `src/services/edge/my-service/` or `src/services/cloud/my-service/`
-2. Add `Cargo.toml` with `{ workspace = true }` deps
-3. Add path to `[workspace] members` in root `Cargo.toml`
-4. Add a `Dockerfile` (copy from a similar service)
-5. Add to the relevant compose file with `networks: - idps-net`
-6. If publicly reachable: add `- proxy` network + Traefik labels
+2. Add a `Cargo.toml` using `{ workspace = true }` for shared deps
+3. Add the path to `[workspace] members` in the root `Cargo.toml`
+4. Add a `Dockerfile` (copy from a similar service, e.g. `raspi-collector`)
+5. Add the service to the relevant compose file with `networks: - idps-net`
+6. If publicly reachable, also add the `proxy` network + Traefik labels
 
 ---
 
@@ -99,8 +101,20 @@ cargo audit
 - Middleware state is separate from app state — use `from_fn_with_state`
 
 **Tailwind CSS v4 `@apply` in component styles**
-Any component `.css` using `@apply` must start with:
+Any component `.css` file using `@apply` must start with:
 ```css
 @reference "../../../../styles.css";
 ```
-Without this the build fails with `Cannot apply unknown utility class`.
+Without this line the build fails with `Cannot apply unknown utility class`.
+
+**ARM64 MongoDB**
+The compose file defaults to `mongo:4.4.18` for ARM64 compatibility (Cortex-A72 lacks AVX). x86_64 dev machines should override this:
+```bash
+MONGO_IMAGE=mongo:7.0 docker compose -f docker-compose.raspi.yml up -d
+```
+
+**`CAPTURE_INTERFACE` vs `SURICATA_IFACE`**
+Both must be set to the same interface in `.env`. `CAPTURE_INTERFACE` is used by `packet-processor`; `SURICATA_IFACE` is used by the Suricata container entrypoint. They are intentionally separate to allow future divergence.
+
+**`docker-compose.raspi.yml` — no `platform:` directives**
+The compose file does not pin `platform:`. Docker auto-detects the host architecture. On ARM64 hosts Docker pulls ARM64 images; on x86_64 it pulls amd64 images. The `mongo:4.4.18` image is available for both.
